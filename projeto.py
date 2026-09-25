@@ -1,4 +1,5 @@
 import os
+import json
 from tkinter import Tk, Label, Button, ttk
 from tkinter.filedialog import askdirectory
 from tkinter import messagebox
@@ -6,6 +7,7 @@ import shutil
 import datetime
 
 pasta_selecionada = ""
+pasta_destino = ""
 
 
 def escolher_pasta():
@@ -14,16 +16,26 @@ def escolher_pasta():
 
     if pasta:
         pasta_selecionada = pasta
-        label_pasta.config(text=f"Pasta selecionada: {pasta_selecionada}")
+        label_pasta.config(text=f"Pasta de origem: {pasta_selecionada}")
+        label_status.config(text="Pronto para selecionar destino.")
+
+
+def escolher_destino():
+    global pasta_destino
+    pasta = askdirectory()
+
+    if pasta:
+        pasta_destino = pasta
+        label_destino.config(text=f"Destino do backup: {pasta_destino}")
         label_status.config(text="Pronto para fazer backup.")
 
 
-def criar_backup(pasta_origem, barra_progresso):
+def criar_backup(pasta_origem, pasta_destino, barra_progresso):
     lista_arquivos = os.listdir(pasta_origem)
     total_itens = len(lista_arquivos)
 
     nome_pasta_backup = "backup"
-    nome_completo_pasta_backup = os.path.join(pasta_origem, nome_pasta_backup)
+    nome_completo_pasta_backup = os.path.join(pasta_destino, nome_pasta_backup)
     if not os.path.exists(nome_completo_pasta_backup):
         os.mkdir(nome_completo_pasta_backup)
 
@@ -68,15 +80,45 @@ def criar_backup(pasta_origem, barra_progresso):
     return arquivos_copiados, pastas_copiadas, erros
 
 
+def salvar_historico(pasta_origem, arquivos_copiados, pastas_copiadas, quantidade_erros):
+    caminho_historico = "historico.json"
+
+    novo_registro = {
+        "data": datetime.datetime.today().strftime("%Y-%m-%d"),
+        "horario": datetime.datetime.today().strftime("%Hh%Mm%Ss"),
+        "pasta_origem": pasta_origem,
+        "arquivos_copiados": arquivos_copiados,
+        "pastas_copiadas": pastas_copiadas,
+        "erros": quantidade_erros
+    }
+
+    if os.path.exists(caminho_historico):
+        with open(caminho_historico, "r") as arquivo:
+            historico = json.load(arquivo)
+    else:
+        historico = []
+
+    historico.append(novo_registro)
+
+    with open(caminho_historico, "w") as arquivo:
+        json.dump(historico, arquivo, indent=4)
+
+
 def realizar_backup():
     if not pasta_selecionada:
-        messagebox.showwarning("Atenção", "Selecione uma pasta antes de fazer o backup.")
+        messagebox.showwarning("Atenção", "Selecione uma pasta de origem antes de fazer o backup.")
+        return
+
+    if not pasta_destino:
+        messagebox.showwarning("Atenção", "Selecione uma pasta de destino antes de fazer o backup.")
         return
 
     label_status.config(text="Backup em andamento...")
     janela.update()
 
-    arquivos_copiados, pastas_copiadas, erros = criar_backup(pasta_selecionada, barra_progresso)
+    arquivos_copiados, pastas_copiadas, erros = criar_backup(pasta_selecionada, pasta_destino, barra_progresso)
+
+    salvar_historico(pasta_selecionada, arquivos_copiados, pastas_copiadas, len(erros))
 
     if not erros:
         mensagem_final = f"Backup realizado com sucesso!\n\nArquivos copiados: {arquivos_copiados}\nPastas copiadas: {pastas_copiadas}"
@@ -96,16 +138,22 @@ def realizar_backup():
 
 janela = Tk()
 janela.title("Gerenciador de Backup")
-janela.geometry("400x250")
+janela.geometry("420x320")
 
 label_titulo = Label(janela, text="Gerenciador de Backup", font=("Arial", 14, "bold"))
 label_titulo.pack(pady=10)
 
-botao_selecionar = Button(janela, text="Selecionar pasta", command=escolher_pasta)
+botao_selecionar = Button(janela, text="Selecionar pasta de origem", command=escolher_pasta)
 botao_selecionar.pack(pady=5)
 
-label_pasta = Label(janela, text="Nenhuma pasta selecionada")
+label_pasta = Label(janela, text="Nenhuma pasta de origem selecionada")
 label_pasta.pack(pady=5)
+
+botao_destino = Button(janela, text="Selecionar destino do backup", command=escolher_destino)
+botao_destino.pack(pady=5)
+
+label_destino = Label(janela, text="Nenhum destino selecionado")
+label_destino.pack(pady=5)
 
 botao_backup = Button(janela, text="Fazer Backup", command=realizar_backup)
 botao_backup.pack(pady=5)
